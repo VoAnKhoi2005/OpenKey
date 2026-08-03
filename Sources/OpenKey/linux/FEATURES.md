@@ -11,6 +11,7 @@ impact.
 - [x] Input type selection: Telex, VNI, Simple Telex 1/2, Custom
 - [x] Custom 11-key typing layout
 - [x] Code-table selection: Unicode, TCVN3, VNI Windows, Unicode Compound, CP1258
+- [x] Settings launcher exposed to Ubuntu Keyboard settings through IBus
 - [ ] Per-application input-mode and code-table memory
 - [ ] Configurable keyboard shortcut to toggle Vietnamese/English
 - [ ] Temporary-disable shortcuts and compatibility profiles
