@@ -16,5 +16,6 @@
     <key name="allow-zfwj" type="b"><default>false</default><summary>Allow Z F W J consonants</summary></key>
     <key name="quick-start-consonant" type="b"><default>false</default><summary>Quick starting consonants</summary></key>
     <key name="quick-end-consonant" type="b"><default>false</default><summary>Quick ending consonants</summary></key>
+    <key name="run-on-startup" type="b"><default>false</default><summary>Launch OpenKey control at login</summary></key>
   </schema>
 </schemalist>

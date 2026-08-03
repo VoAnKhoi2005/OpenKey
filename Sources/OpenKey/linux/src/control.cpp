@@ -2,6 +2,7 @@
 #include <libayatana-appindicator/app-indicator.h>
 #include <string>
 #include <vector>
+#include <glib/gstdio.h>
 #include "config.h"
 #include "ConvertTool.h"
 
@@ -154,6 +155,29 @@ static GtkWidget* setting_switch(App* app, GtkWidget* parent, const char* label,
     gtk_box_pack_end(GTK_BOX(row), control, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(parent), row, FALSE, FALSE, 0);
     return control;
+}
+
+static void startup_changed(GtkSwitch*, gboolean enabled, gpointer data) {
+    auto* app = static_cast<App*>(data);
+    gchar* directory = g_build_filename(g_get_user_config_dir(), "autostart", nullptr);
+    gchar* path = g_build_filename(directory, "openkey-control.desktop", nullptr);
+    if (enabled) {
+        g_mkdir_with_parents(directory, 0700);
+        const char* desktop = "[Desktop Entry]\nType=Application\nName=OpenKey\nExec=openkey-control\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n";
+        g_file_set_contents(path, desktop, -1, nullptr);
+    } else {
+        g_remove(path);
+    }
+    g_settings_set_boolean(app->settings.get(), "run-on-startup", enabled);
+    g_free(path); g_free(directory);
+}
+
+static void startup_switch(App* app, GtkWidget* parent) {
+    GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12); GtkWidget* label = gtk_label_new("Chạy OpenKey khi đăng nhập"); GtkWidget* toggle = gtk_switch_new();
+    gtk_widget_set_halign(label, GTK_ALIGN_START); gtk_widget_set_hexpand(label, TRUE);
+    gtk_switch_set_active(GTK_SWITCH(toggle), g_settings_get_boolean(app->settings.get(), "run-on-startup"));
+    g_signal_connect(toggle, "state-set", G_CALLBACK(startup_changed), app);
+    gtk_box_pack_start(GTK_BOX(row), label, TRUE, TRUE, 0); gtk_box_pack_end(GTK_BOX(row), toggle, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(parent), row, FALSE, FALSE, 0);
 }
 
 static void show_settings(GtkMenuItem*, gpointer data) {
@@ -366,6 +390,7 @@ static void activate(GtkApplication* application, gpointer data) {
     setting_switch(app, system, "Cho phép phụ âm đầu Z, F, W, J", "allow-zfwj");
     setting_switch(app, system, "Gõ tắt phụ âm đầu", "quick-start-consonant");
     setting_switch(app, system, "Gõ tắt phụ âm cuối", "quick-end-consonant");
+    startup_switch(app, system);
     gtk_box_pack_start(GTK_BOX(system), gtk_label_new("Dùng biểu tượng VI / EN trên thanh trên cùng để chuyển chế độ. Có thể thêm OpenKey vào Ứng dụng khởi động để chạy cùng Ubuntu."), FALSE, FALSE, 0);
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), system, gtk_label_new("Hệ thống"));
     GtkWidget* about = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
