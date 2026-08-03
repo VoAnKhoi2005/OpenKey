@@ -22,6 +22,23 @@ static void set_enabled(GtkCheckMenuItem* item, gpointer data) {
     update_indicator(app);
 }
 
+static void set_menu_choice(GtkCheckMenuItem* item, gpointer data) {
+    if (!gtk_check_menu_item_get_active(item)) return;
+    const char* key = static_cast<const char*>(g_object_get_data(G_OBJECT(item), "openkey-key"));
+    GSettings* settings = g_settings_new("org.openkey.Linux");
+    g_settings_set_int(settings, key, GPOINTER_TO_INT(data));
+    g_object_unref(settings);
+}
+
+static void add_choice(GtkWidget* menu, GSList** group, const char* label, const char* key, int value, int selected) {
+    GtkWidget* item = gtk_radio_menu_item_new_with_label(*group, label);
+    *group = gtk_radio_menu_item_get_group(GTK_RADIO_MENU_ITEM(item));
+    g_object_set_data(G_OBJECT(item), "openkey-key", const_cast<char*>(key));
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(item), value == selected);
+    g_signal_connect(item, "toggled", G_CALLBACK(set_menu_choice), GINT_TO_POINTER(value));
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
+}
+
 static void toggle_changed(GtkToggleButton* button, gpointer data) {
     auto* app = static_cast<App*>(data);
     g_settings_set_boolean(app->settings.get(), "enabled", gtk_toggle_button_get_active(button));
@@ -78,6 +95,22 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(enabled), g_settings_get_boolean(app->settings.get(), "enabled"));
     g_signal_connect(enabled, "toggled", G_CALLBACK(set_enabled), app);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), enabled);
+    GtkWidget* type_menu = gtk_menu_new();
+    GtkWidget* type_root = gtk_menu_item_new_with_label("Kiểu gõ");
+    GSList* type_group = nullptr;
+    const char* type_names[] = {"Telex", "VNI", "Simple Telex 1", "Simple Telex 2", "Tự định nghĩa"};
+    int selected_type = g_settings_get_int(app->settings.get(), "input-type");
+    for (int i = 0; i < 5; ++i) add_choice(type_menu, &type_group, type_names[i], "input-type", i, selected_type);
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(type_root), type_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), type_root);
+    GtkWidget* code_menu = gtk_menu_new();
+    GtkWidget* code_root = gtk_menu_item_new_with_label("Bảng mã");
+    GSList* code_group = nullptr;
+    const char* code_names[] = {"Unicode dựng sẵn", "TCVN3 (ABC)", "VNI Windows", "Unicode tổ hợp", "Vietnamese Locale CP1258"};
+    int selected_code = g_settings_get_int(app->settings.get(), "code-table");
+    for (int i = 0; i < 5; ++i) add_choice(code_menu, &code_group, code_names[i], "code-table", i, selected_code);
+    gtk_menu_item_set_submenu(GTK_MENU_ITEM(code_root), code_menu);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), code_root);
     GtkWidget* settings = gtk_menu_item_new_with_label("Bảng điều khiển…");
     g_signal_connect(settings, "activate", G_CALLBACK(show_settings), app);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), settings);
