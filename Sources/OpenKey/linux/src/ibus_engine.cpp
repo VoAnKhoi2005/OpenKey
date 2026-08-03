@@ -27,6 +27,30 @@ typedef struct _OpenKeyEngineClass { IBusEngineClass parent; } OpenKeyEngineClas
 
 G_DEFINE_TYPE(OpenKeyEngine, openkey_engine, IBUS_TYPE_ENGINE)
 
+struct PendingReplacement {
+    IBusEngine* engine;
+    guint erase_count;
+    std::string text;
+    bool start_new_session;
+};
+
+static gboolean deliver_replacement(gpointer value) {
+    auto* replacement = static_cast<PendingReplacement*>(value);
+    // GTK clients can use synchronous ProcessKeyEvent. IBus does not allow a
+    // forwarded event to be sent as the synchronous call's response, so send it
+    // in the next main-loop iteration instead.
+    for (guint i = 0; i < replacement->erase_count; ++i)
+        ibus_engine_forward_key_event(replacement->engine, IBUS_KEY_BackSpace, 22, 0);
+    if (!replacement->text.empty()) {
+        IBusText* text = ibus_text_new_from_string(replacement->text.c_str());
+        ibus_engine_commit_text(replacement->engine, text);
+    }
+    if (replacement->start_new_session) startNewSession();
+    g_object_unref(replacement->engine);
+    delete replacement;
+    return G_SOURCE_REMOVE;
+}
+
 static guint16 key_for_ascii(gunichar c) {
     switch (g_ascii_tolower(c)) {
         case 'a': return KEY_A; case 'b': return KEY_B; case 'c': return KEY_C; case 'd': return KEY_D;
@@ -87,14 +111,28 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     vKeyHookState* hook = engine->hook;
     if (hook->code == vDoNothing) return FALSE;
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        // Terminals frequently do not implement delete-surrounding-text. Send
-        // actual Backspace events instead. IBus requires a valid XKB keycode;
-        // keycode 22 is the standard Linux Backspace key (evdev code 14 + 8).
+        // Terminals frequently do not implement delete-surrounding-text. Queue
+        // Backspace after the current synchronous IBus call has returned.
         if (vCompatibilityMode) {
             ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
         } else {
-            for (guint i = 0; i < hook->backspaceCount; ++i)
-                ibus_engine_forward_key_event(base, IBUS_KEY_BackSpace, 22, 0);
+            GString* delayed_output = g_string_new(nullptr);
+            const std::vector<Uint32>& delayed_characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
+            if (hook->code == vReplaceMaro) {
+                for (Uint32 c : delayed_characters) g_string_append_unichar(delayed_output, output_character(c));
+            } else {
+                for (int i = hook->newCharCount - 1; i >= 0; --i) {
+                    gunichar c = output_character(hook->charData[i]);
+                    if (c) g_string_append_unichar(delayed_output, c);
+                }
+            }
+            auto* replacement = new PendingReplacement{base, hook->backspaceCount,
+                                                       std::string(delayed_output->str, delayed_output->len),
+                                                       hook->code == vRestoreAndStartNewSession};
+            g_string_free(delayed_output, TRUE);
+            g_object_ref(base);
+            g_idle_add(deliver_replacement, replacement);
+            return TRUE;
         }
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
