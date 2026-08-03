@@ -109,6 +109,7 @@ static void activate(GtkApplication* application, gpointer data) {
     setting_switch(app, box, "Enable macros", "use-macro");
     setting_switch(app, box, "Auto-capitalize first character", "uppercase-first");
     update_indicator(app);
+    gtk_widget_show_all(app->window);
 }
 
 int main(int argc, char** argv) {
