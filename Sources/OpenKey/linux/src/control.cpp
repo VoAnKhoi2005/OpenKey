@@ -142,12 +142,42 @@ static void convert_text(GtkButton*, gpointer data) {
     GtkComboBox* to = GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "to"));
     convertToolFromCode = gtk_combo_box_get_active(from);
     convertToolToCode = gtk_combo_box_get_active(to);
+    convertToolToAllCaps = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g_object_get_data(G_OBJECT(dialog), "all-caps")));
+    convertToolToAllNonCaps = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g_object_get_data(G_OBJECT(dialog), "all-lower")));
+    convertToolToCapsFirstLetter = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g_object_get_data(G_OBJECT(dialog), "first-caps")));
+    convertToolToCapsEachWord = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g_object_get_data(G_OBJECT(dialog), "word-caps")));
+    convertToolRemoveMark = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(g_object_get_data(G_OBJECT(dialog), "remove-mark")));
     GtkTextIter begin, end;
     gtk_text_buffer_get_bounds(input, &begin, &end);
     gchar* source = gtk_text_buffer_get_text(input, &begin, &end, FALSE);
     std::string result = convertUtil(source);
     gtk_text_buffer_set_text(output, result.c_str(), -1);
     g_free(source);
+}
+
+static void reverse_codes(GtkButton*, gpointer data) {
+    GtkWidget* dialog = GTK_WIDGET(data);
+    GtkComboBox* from = GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "from"));
+    GtkComboBox* to = GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "to"));
+    int old_from = gtk_combo_box_get_active(from);
+    gtk_combo_box_set_active(from, gtk_combo_box_get_active(to));
+    gtk_combo_box_set_active(to, old_from);
+}
+
+static void clipboard_to_input(GtkButton*, gpointer data) {
+    GtkWidget* dialog = GTK_WIDGET(data);
+    GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+    gchar* text = gtk_clipboard_wait_for_text(clipboard);
+    if (text) { gtk_text_buffer_set_text(GTK_TEXT_BUFFER(g_object_get_data(G_OBJECT(dialog), "input")), text, -1); g_free(text); }
+}
+
+static void output_to_clipboard(GtkButton*, gpointer data) {
+    GtkWidget* dialog = GTK_WIDGET(data);
+    GtkTextBuffer* output = GTK_TEXT_BUFFER(g_object_get_data(G_OBJECT(dialog), "output"));
+    GtkTextIter begin, end; gtk_text_buffer_get_bounds(output, &begin, &end);
+    gchar* text = gtk_text_buffer_get_text(output, &begin, &end, FALSE);
+    gtk_clipboard_set_text(gtk_clipboard_get(GDK_SELECTION_CLIPBOARD), text, -1);
+    g_free(text);
 }
 
 static void show_convert(GtkMenuItem*, gpointer data) {
@@ -161,16 +191,28 @@ static void show_convert(GtkMenuItem*, gpointer data) {
     gtk_combo_box_set_active(GTK_COMBO_BOX(from), 0); gtk_combo_box_set_active(GTK_COMBO_BOX(to), 0);
     gtk_box_pack_start(GTK_BOX(controls), gtk_label_new("Từ:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(controls), from, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(controls), gtk_label_new("Sang:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(controls), to, TRUE, TRUE, 0);
+    GtkWidget* reverse = gtk_button_new_with_label("Đổi chiều"); gtk_box_pack_start(GTK_BOX(controls), reverse, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(area), controls, FALSE, FALSE, 8);
     GtkWidget* input = gtk_text_view_new(); GtkWidget* output = gtk_text_view_new(); gtk_text_view_set_editable(GTK_TEXT_VIEW(output), FALSE);
     gtk_widget_set_size_request(input, 480, 130); gtk_widget_set_size_request(output, 480, 130);
     gtk_box_pack_start(GTK_BOX(area), gtk_label_new("Văn bản nguồn:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(area), input, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(area), gtk_label_new("Kết quả:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(area), output, TRUE, TRUE, 0);
     GtkWidget* button = gtk_button_new_with_label("Chuyển mã"); gtk_box_pack_start(GTK_BOX(area), button, FALSE, FALSE, 8);
+    GtkWidget* options = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    const char* option_names[] = {"IN HOA", "in thường", "Hoa đầu câu", "Hoa mỗi từ", "Bỏ dấu"};
+    const char* option_keys[] = {"all-caps", "all-lower", "first-caps", "word-caps", "remove-mark"};
+    for (int i = 0; i < 5; ++i) { GtkWidget* option = gtk_check_button_new_with_label(option_names[i]); gtk_box_pack_start(GTK_BOX(options), option, FALSE, FALSE, 0); g_object_set_data(G_OBJECT(dialog), option_keys[i], option); }
+    gtk_box_pack_start(GTK_BOX(area), options, FALSE, FALSE, 0);
+    GtkWidget* clipboard = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* paste = gtk_button_new_with_label("Dán từ clipboard"); GtkWidget* copy = gtk_button_new_with_label("Chép kết quả");
+    gtk_box_pack_start(GTK_BOX(clipboard), paste, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(clipboard), copy, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(area), clipboard, FALSE, FALSE, 0);
     g_object_set_data(G_OBJECT(dialog), "input", gtk_text_view_get_buffer(GTK_TEXT_VIEW(input)));
     g_object_set_data(G_OBJECT(dialog), "output", gtk_text_view_get_buffer(GTK_TEXT_VIEW(output)));
     g_object_set_data(G_OBJECT(dialog), "from", from); g_object_set_data(G_OBJECT(dialog), "to", to);
     g_signal_connect(button, "clicked", G_CALLBACK(convert_text), dialog);
+    g_signal_connect(reverse, "clicked", G_CALLBACK(reverse_codes), dialog);
+    g_signal_connect(paste, "clicked", G_CALLBACK(clipboard_to_input), dialog);
+    g_signal_connect(copy, "clicked", G_CALLBACK(output_to_clipboard), dialog);
     g_signal_connect_swapped(dialog, "response", G_CALLBACK(gtk_widget_destroy), dialog);
     gtk_widget_show_all(dialog);
 }
