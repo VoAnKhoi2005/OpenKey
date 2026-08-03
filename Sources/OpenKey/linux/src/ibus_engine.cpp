@@ -22,7 +22,6 @@ static void settings_changed(GSettings* settings, gchar* key, gpointer) {
 typedef struct _OpenKeyEngine {
     IBusEngine parent;
     vKeyHookState* hook;
-    std::string preedit;
 } OpenKeyEngine;
 typedef struct _OpenKeyEngineClass { IBusEngineClass parent; } OpenKeyEngineClass;
 
@@ -72,52 +71,9 @@ static gunichar output_character(guint32 data) {
     return 0;
 }
 
-static void update_preedit(OpenKeyEngine* engine) {
-    IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
-    const guint cursor = static_cast<guint>(g_utf8_strlen(engine->preedit.c_str(), -1));
-    ibus_engine_update_preedit_text(IBUS_ENGINE(engine), text, cursor, !engine->preedit.empty());
-}
-
-static void commit_preedit(OpenKeyEngine* engine) {
-    if (!engine->preedit.empty()) {
-        IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
-        ibus_engine_commit_text(IBUS_ENGINE(engine), text);
-        engine->preedit.clear();
-    }
-    update_preedit(engine);
-}
-
-static void remove_preedit_characters(std::string& text, guint count) {
-    while (count-- && !text.empty()) {
-        gchar* start = g_utf8_find_prev_char(text.c_str(), text.c_str() + text.size());
-        if (!start) {
-            text.clear();
-            return;
-        }
-        text.erase(static_cast<std::string::size_type>(start - text.c_str()));
-    }
-}
-
-static bool is_composition_character(guint keyval) {
-    gunichar character = ibus_keyval_to_unicode(keyval);
-    return g_unichar_isalnum(character) || character == '-' || character == '[' || character == ']' ||
-           character == '\\' || character == ';' || character == '\'' || character == ',' || character == '.' ||
-           character == '/' || character == '`' || character == '=';
-}
-
 static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint state) {
     auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
     if (state & IBUS_RELEASE_MASK || state & (IBUS_CONTROL_MASK | IBUS_MOD1_MASK | IBUS_SUPER_MASK)) return FALSE;
-
-    // Do not leave uncommitted text behind when the user moves the cursor or
-    // performs an action outside of normal text composition.
-    if (keyval == IBUS_KEY_Left || keyval == IBUS_KEY_Right || keyval == IBUS_KEY_Up ||
-        keyval == IBUS_KEY_Down || keyval == IBUS_KEY_Home || keyval == IBUS_KEY_End ||
-        keyval == IBUS_KEY_Page_Up || keyval == IBUS_KEY_Page_Down || keyval == IBUS_KEY_Escape) {
-        commit_preedit(engine);
-        startNewSession();
-        return FALSE;
-    }
     guint16 key = key_for_keyval(keyval);
     if (key == KEY_EMPTY) return FALSE;
 
@@ -129,18 +85,17 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     }
 
     vKeyHookState* hook = engine->hook;
-    if (keyval == IBUS_KEY_BackSpace) {
-        if (engine->preedit.empty()) return FALSE;
-        remove_preedit_characters(engine->preedit, 1);
-        update_preedit(engine);
-        return TRUE;
-    }
-
+    if (hook->code == vDoNothing) return FALSE;
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        // Keep the active word in IBus preedit.  Asking applications to delete
-        // surrounding text is optional in IBus and terminals commonly decline
-        // it, which used to yield duplicated text such as "dungùng".
-        remove_preedit_characters(engine->preedit, hook->backspaceCount);
+        // Terminals frequently do not implement delete-surrounding-text. Send
+        // actual Backspace events instead. IBus requires a valid XKB keycode;
+        // keycode 22 is the standard Linux Backspace key (evdev code 14 + 8).
+        if (vCompatibilityMode) {
+            ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
+        } else {
+            for (guint i = 0; i < hook->backspaceCount; ++i)
+                ibus_engine_forward_key_event(base, IBUS_KEY_BackSpace, 22, 0);
+        }
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
         if (hook->code == vReplaceMaro) {
@@ -151,47 +106,23 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
                 if (c) g_string_append_unichar(output, c);
             }
         }
-        if (output->len) engine->preedit += output->str;
+        if (output->len) {
+            IBusText* text = ibus_text_new_from_string(output->str);
+            ibus_engine_commit_text(base, text);
+        }
         g_string_free(output, TRUE);
         if (hook->code == vRestoreAndStartNewSession) startNewSession();
-
-        // A macro is normally expanded when its trailing separator (such as a
-        // space) arrives. Commit the expanded word, then let that separator pass
-        // through to the application normally.
-        if (!is_composition_character(keyval)) {
-            commit_preedit(engine);
-            return FALSE;
-        }
-        update_preedit(engine);
         return TRUE;
     }
-
-    if (hook->code == vDoNothing && is_composition_character(keyval)) {
-        gunichar character = ibus_keyval_to_unicode(keyval);
-        gchar encoded[7] = {0};
-        const gint length = g_unichar_to_utf8(character, encoded);
-        engine->preedit.append(encoded, length);
-        update_preedit(engine);
-        return TRUE;
-    }
-
-    // Word separators are committed by the client application itself after the
-    // current preedit word is committed here.
-    commit_preedit(engine);
     return FALSE;
 }
 
 static void openkey_engine_init(OpenKeyEngine* engine) { engine->hook = static_cast<vKeyHookState*>(vKeyInit()); }
-static void openkey_engine_enable(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    engine->preedit.clear();
-    update_preedit(engine);
+static void openkey_engine_enable(IBusEngine*) {
     vLanguage = 1;
     startNewSession();
 }
-static void openkey_engine_disable(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    commit_preedit(engine);
+static void openkey_engine_disable(IBusEngine*) {
     vLanguage = 0;
     startNewSession();
 }
