@@ -91,8 +91,11 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_window_set_title(GTK_WINDOW(app->window), "OpenKey Settings");
     gtk_window_set_default_size(GTK_WINDOW(app->window), 480, 520);
     gtk_container_set_border_width(GTK_CONTAINER(app->window), 20);
+    GtkWidget* tabs = gtk_notebook_new();
+    gtk_container_add(GTK_CONTAINER(app->window), tabs);
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
-    gtk_container_add(GTK_CONTAINER(app->window), box);
+    gtk_container_set_border_width(GTK_CONTAINER(box), 16);
+    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), box, gtk_label_new("Typing"));
     GtkWidget* title = gtk_label_new("<b>OpenKey Vietnamese input</b>");
     gtk_label_set_use_markup(GTK_LABEL(title), TRUE);
     gtk_widget_set_halign(title, GTK_ALIGN_START);
@@ -126,6 +129,20 @@ static void activate(GtkApplication* application, gpointer data) {
     setting_switch(app, box, "Restore invalid words", "restore-invalid");
     setting_switch(app, box, "Enable macros", "use-macro");
     setting_switch(app, box, "Auto-capitalize first character", "uppercase-first");
+    GtkWidget* macros = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_container_set_border_width(GTK_CONTAINER(macros), 16);
+    gtk_box_pack_start(GTK_BOX(macros), gtk_label_new("Macros"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(macros), gtk_label_new("Macro expansion is enabled from the Typing tab. A full macro list editor will be added here."), FALSE, FALSE, 0);
+    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), macros, gtk_label_new("Macros"));
+    GtkWidget* system = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_container_set_border_width(GTK_CONTAINER(system), 16);
+    gtk_box_pack_start(GTK_BOX(system), gtk_label_new("System integration"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(system), gtk_label_new("Use the VI / EN indicator in the top bar to change modes. Add OpenKey to Startup Applications to launch it on login."), FALSE, FALSE, 0);
+    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), system, gtk_label_new("System"));
+    GtkWidget* about = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+    gtk_container_set_border_width(GTK_CONTAINER(about), 16);
+    gtk_box_pack_start(GTK_BOX(about), gtk_label_new("OpenKey for Linux\nVietnamese IBus input method\nGPL-3.0-or-later"), FALSE, FALSE, 0);
+    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), about, gtk_label_new("About"));
     update_indicator(app);
     gtk_widget_show_all(app->window);
 }
