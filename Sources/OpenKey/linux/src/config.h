@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gio/gio.h>
+#include "DataType.h"
 
 // The portable OpenKey engine declares these values.  The Linux frontend owns
 // them and keeps them synchronized with GSettings.
@@ -26,6 +27,7 @@ extern int vQuickEndConsonant;
 extern int vRememberCode;
 extern int vOtherLanguage;
 extern int vTempOffOpenKey;
+extern Uint16 vCustomInputKeys[11];
 
 class OpenKeySettings {
 public:

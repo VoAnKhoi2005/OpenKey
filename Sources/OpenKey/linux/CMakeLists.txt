@@ -18,6 +18,7 @@ set(ENGINE_SOURCES
 
 add_library(openkey-config STATIC src/config.cpp)
 target_link_libraries(openkey-config PUBLIC PkgConfig::IBUS)
+target_compile_definitions(openkey-config PUBLIC LINUX)
 target_include_directories(openkey-config PUBLIC src ../engine)
 
 add_executable(openkey-ibus src/ibus_engine.cpp ${ENGINE_SOURCES})

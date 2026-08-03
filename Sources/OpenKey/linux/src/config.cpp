@@ -1,4 +1,20 @@
 #include "config.h"
+#include "DataType.h"
+
+Uint16 vCustomInputKeys[11] = {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z};
+
+static Uint16 custom_key(gchar key) {
+    switch (g_ascii_tolower(key)) {
+        case 'a': return KEY_A; case 'b': return KEY_B; case 'c': return KEY_C; case 'd': return KEY_D; case 'e': return KEY_E;
+        case 'f': return KEY_F; case 'g': return KEY_G; case 'h': return KEY_H; case 'i': return KEY_I; case 'j': return KEY_J;
+        case 'k': return KEY_K; case 'l': return KEY_L; case 'm': return KEY_M; case 'n': return KEY_N; case 'o': return KEY_O;
+        case 'p': return KEY_P; case 'q': return KEY_Q; case 'r': return KEY_R; case 's': return KEY_S; case 't': return KEY_T;
+        case 'u': return KEY_U; case 'v': return KEY_V; case 'w': return KEY_W; case 'x': return KEY_X; case 'y': return KEY_Y; case 'z': return KEY_Z;
+        case '0': return KEY_0; case '1': return KEY_1; case '2': return KEY_2; case '3': return KEY_3; case '4': return KEY_4;
+        case '5': return KEY_5; case '6': return KEY_6; case '7': return KEY_7; case '8': return KEY_8; case '9': return KEY_9;
+        default: return KEY_EMPTY;
+    }
+}
 
 int vLanguage = 1;
 int vInputType = 0;
@@ -37,6 +53,15 @@ void OpenKeySettings::changed(GSettings*, gchar*, gpointer self) {
 void OpenKeySettings::load() {
     vLanguage = g_settings_get_boolean(settings_, "enabled");
     vInputType = g_settings_get_int(settings_, "input-type");
+    gchar* custom = g_settings_get_string(settings_, "custom-input-keys");
+    if (g_utf8_strlen(custom, -1) == 11) {
+        const gchar* p = custom;
+        for (int i = 0; i < 11; ++i, p = g_utf8_next_char(p)) {
+            Uint16 key = custom_key(*p);
+            if (key != KEY_EMPTY) vCustomInputKeys[i] = key;
+        }
+    }
+    g_free(custom);
     vCodeTable = g_settings_get_int(settings_, "code-table");
     vCheckSpelling = g_settings_get_boolean(settings_, "spell-check");
     vUseModernOrthography = g_settings_get_boolean(settings_, "modern-orthography");

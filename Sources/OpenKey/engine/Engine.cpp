@@ -35,22 +35,31 @@ static Uint16 ProcessingChar[][11] = {
     {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z}, //Telex
     {KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0}, //VNI
     {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z}, //Simple Telex 1
-    {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z} //Simple Telex 2
+    {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z}, //Simple Telex 2
+    {KEY_S, KEY_F, KEY_R, KEY_X, KEY_J, KEY_A, KEY_O, KEY_E, KEY_W, KEY_D, KEY_Z} //Custom
 };
 
-#define IS_KEY_Z(key) (ProcessingChar[vInputType][10] == key)
-#define IS_KEY_D(key) (ProcessingChar[vInputType][9] == key)
-#define IS_KEY_W(key) ((vInputType != vVNI) ? ProcessingChar[vInputType][8] == key : \
-                                    (vInputType == vVNI ? (ProcessingChar[vInputType][8] == key || ProcessingChar[vInputType][7] == key) : false))
-#define IS_KEY_DOUBLE(key) ((vInputType != vVNI) ? (ProcessingChar[vInputType][5] == key || ProcessingChar[vInputType][6] == key || ProcessingChar[vInputType][7] == key) :\
-                                        (vInputType == vVNI ? ProcessingChar[vInputType][6] == key : false))
-#define IS_KEY_S(key) (ProcessingChar[vInputType][0] == key)
-#define IS_KEY_F(key) (ProcessingChar[vInputType][1] == key)
-#define IS_KEY_R(key) (ProcessingChar[vInputType][2] == key)
-#define IS_KEY_X(key) (ProcessingChar[vInputType][3] == key)
-#define IS_KEY_J(key) (ProcessingChar[vInputType][4] == key)
+#ifdef LINUX
+// Supplied by the Linux settings frontend. The default is Telex.
+extern Uint16 vCustomInputKeys[11];
+#define PROCESSING_KEY(index) (vInputType == vCustom ? vCustomInputKeys[index] : ProcessingChar[vInputType][index])
+#else
+#define PROCESSING_KEY(index) (ProcessingChar[vInputType][index])
+#endif
 
-#define IS_MARK_KEY(keyCode) (((vInputType != vVNI) && (keyCode == KEY_S || keyCode == KEY_F || keyCode == KEY_R || keyCode == KEY_J || keyCode == KEY_X)) || \
+#define IS_KEY_Z(key) (PROCESSING_KEY(10) == key)
+#define IS_KEY_D(key) (PROCESSING_KEY(9) == key)
+#define IS_KEY_W(key) ((vInputType != vVNI) ? PROCESSING_KEY(8) == key : \
+                                    (vInputType == vVNI ? (PROCESSING_KEY(8) == key || PROCESSING_KEY(7) == key) : false))
+#define IS_KEY_DOUBLE(key) ((vInputType != vVNI) ? (PROCESSING_KEY(5) == key || PROCESSING_KEY(6) == key || PROCESSING_KEY(7) == key) :\
+                                        (vInputType == vVNI ? PROCESSING_KEY(6) == key : false))
+#define IS_KEY_S(key) (PROCESSING_KEY(0) == key)
+#define IS_KEY_F(key) (PROCESSING_KEY(1) == key)
+#define IS_KEY_R(key) (PROCESSING_KEY(2) == key)
+#define IS_KEY_X(key) (PROCESSING_KEY(3) == key)
+#define IS_KEY_J(key) (PROCESSING_KEY(4) == key)
+
+#define IS_MARK_KEY(keyCode) (((vInputType != vVNI) && (IS_KEY_S(keyCode) || IS_KEY_F(keyCode) || IS_KEY_R(keyCode) || IS_KEY_J(keyCode) || IS_KEY_X(keyCode))) || \
                                         (vInputType == vVNI && (keyCode == KEY_1 || keyCode == KEY_2 || keyCode == KEY_3 || keyCode == KEY_5 || keyCode == KEY_4)))
 #define IS_BRACKET_KEY(key) (key == KEY_LEFT_BRACKET || key == KEY_RIGHT_BRACKET)
 

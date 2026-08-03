@@ -35,6 +35,14 @@ static void combo_changed(GtkComboBox* box, gpointer data) {
     g_object_unref(settings);
 }
 
+static void custom_keys_changed(GtkEditable* entry, gpointer) {
+    const char* keys = gtk_entry_get_text(GTK_ENTRY(entry));
+    if (g_utf8_strlen(keys, -1) != 11) return;
+    GSettings* settings = g_settings_new("org.openkey.Linux");
+    g_settings_set_string(settings, "custom-input-keys", keys);
+    g_object_unref(settings);
+}
+
 static GtkWidget* setting_switch(App* app, GtkWidget* parent, const char* label, const char* key) {
     GtkWidget* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     GtkWidget* text = gtk_label_new(label);
@@ -99,9 +107,19 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "VNI");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Simple Telex 1");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Simple Telex 2");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Custom");
     gtk_combo_box_set_active(GTK_COMBO_BOX(method), g_settings_get_int(app->settings.get(), "input-type"));
     g_signal_connect(method, "changed", G_CALLBACK(combo_changed), const_cast<char*>("input-type"));
     gtk_box_pack_start(GTK_BOX(box), method, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Custom keys: sắc, huyền, hỏi, ngã, nặng, â, ô, ê, ơ/ư, đ, bỏ dấu"), FALSE, FALSE, 0);
+    GtkWidget* custom_keys = gtk_entry_new();
+    gchar* saved_keys = g_settings_get_string(app->settings.get(), "custom-input-keys");
+    gtk_entry_set_text(GTK_ENTRY(custom_keys), saved_keys);
+    g_free(saved_keys);
+    gtk_entry_set_max_length(GTK_ENTRY(custom_keys), 11);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(custom_keys), "sfrxjaoewdz");
+    g_signal_connect(custom_keys, "changed", G_CALLBACK(custom_keys_changed), nullptr);
+    gtk_box_pack_start(GTK_BOX(box), custom_keys, FALSE, FALSE, 0);
     setting_switch(app, box, "Spell check", "spell-check");
     setting_switch(app, box, "Modern orthography (oà, uý)", "modern-orthography");
     setting_switch(app, box, "Quick Telex", "quick-telex");

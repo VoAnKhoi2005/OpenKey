@@ -34,7 +34,8 @@ enum vKeyInputType {
     vTelex = 0,
     vVNI,
     vSimpleTelex1,
-    vSimpleTelex2
+    vSimpleTelex2,
+    vCustom
 };
 
 typedef unsigned char Byte;
