@@ -75,7 +75,17 @@ static gunichar output_character(guint32 data) {
 static void update_preedit(OpenKeyEngine* engine) {
     IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
     const guint cursor = static_cast<guint>(g_utf8_strlen(engine->preedit.c_str(), -1));
-    ibus_engine_update_preedit_text(IBUS_ENGINE(engine), text, cursor, !engine->preedit.empty());
+    if (cursor) {
+        IBusAttrList* attributes = ibus_attr_list_new();
+        ibus_attr_list_append(attributes, ibus_attr_underline_new(IBUS_ATTR_UNDERLINE_SINGLE, 0, cursor));
+        ibus_text_set_attributes(text, attributes);
+    }
+    // The explicit focus mode is important for browsers and GTK4 clients: they
+    // retain and commit active composition when focus changes instead of silently
+    // dropping the text. This mirrors the lifecycle used by ibus-table.
+    ibus_engine_update_preedit_text_with_mode(IBUS_ENGINE(engine), text, cursor,
+                                              !engine->preedit.empty(), IBUS_ENGINE_PREEDIT_COMMIT);
+    if (!engine->preedit.empty()) ibus_engine_show_preedit_text(IBUS_ENGINE(engine));
 }
 
 static void commit_preedit(OpenKeyEngine* engine) {
@@ -183,10 +193,27 @@ static void openkey_engine_disable(IBusEngine* base) {
     vLanguage = 0;
     startNewSession();
 }
+static void openkey_engine_focus_in(IBusEngine* base) {
+    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
+    update_preedit(engine);
+}
+static void openkey_engine_focus_out(IBusEngine* base) {
+    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
+    commit_preedit(engine);
+}
+static void openkey_engine_reset(IBusEngine* base) {
+    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
+    engine->preedit.clear();
+    update_preedit(engine);
+    startNewSession();
+}
 static void openkey_engine_class_init(OpenKeyEngineClass* klass) {
     IBUS_ENGINE_CLASS(klass)->process_key_event = process_key_event;
     IBUS_ENGINE_CLASS(klass)->enable = openkey_engine_enable;
     IBUS_ENGINE_CLASS(klass)->disable = openkey_engine_disable;
+    IBUS_ENGINE_CLASS(klass)->focus_in = openkey_engine_focus_in;
+    IBUS_ENGINE_CLASS(klass)->focus_out = openkey_engine_focus_out;
+    IBUS_ENGINE_CLASS(klass)->reset = openkey_engine_reset;
 }
 
 int main() {
