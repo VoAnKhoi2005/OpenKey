@@ -22,34 +22,11 @@ static void settings_changed(GSettings* settings, gchar* key, gpointer) {
 typedef struct _OpenKeyEngine {
     IBusEngine parent;
     vKeyHookState* hook;
+    std::string preedit;
 } OpenKeyEngine;
 typedef struct _OpenKeyEngineClass { IBusEngineClass parent; } OpenKeyEngineClass;
 
 G_DEFINE_TYPE(OpenKeyEngine, openkey_engine, IBUS_TYPE_ENGINE)
-
-struct PendingReplacement {
-    IBusEngine* engine;
-    guint erase_count;
-    std::string text;
-    bool start_new_session;
-};
-
-static gboolean deliver_replacement(gpointer value) {
-    auto* replacement = static_cast<PendingReplacement*>(value);
-    // GTK clients can use synchronous ProcessKeyEvent. IBus does not allow a
-    // forwarded event to be sent as the synchronous call's response, so send it
-    // in the next main-loop iteration instead.
-    for (guint i = 0; i < replacement->erase_count; ++i)
-        ibus_engine_forward_key_event(replacement->engine, IBUS_KEY_BackSpace, 22, 0);
-    if (!replacement->text.empty()) {
-        IBusText* text = ibus_text_new_from_string(replacement->text.c_str());
-        ibus_engine_commit_text(replacement->engine, text);
-    }
-    if (replacement->start_new_session) startNewSession();
-    g_object_unref(replacement->engine);
-    delete replacement;
-    return G_SOURCE_REMOVE;
-}
 
 static guint16 key_for_ascii(gunichar c) {
     switch (g_ascii_tolower(c)) {
@@ -95,9 +72,50 @@ static gunichar output_character(guint32 data) {
     return 0;
 }
 
+static void update_preedit(OpenKeyEngine* engine) {
+    IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
+    const guint cursor = static_cast<guint>(g_utf8_strlen(engine->preedit.c_str(), -1));
+    ibus_engine_update_preedit_text(IBUS_ENGINE(engine), text, cursor, !engine->preedit.empty());
+}
+
+static void commit_preedit(OpenKeyEngine* engine) {
+    if (!engine->preedit.empty()) {
+        IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
+        ibus_engine_commit_text(IBUS_ENGINE(engine), text);
+        engine->preedit.clear();
+    }
+    update_preedit(engine);
+}
+
+static void remove_preedit_characters(std::string& text, guint count) {
+    while (count-- && !text.empty()) {
+        gchar* start = g_utf8_find_prev_char(text.c_str(), text.c_str() + text.size());
+        if (!start) {
+            text.clear();
+            return;
+        }
+        text.erase(static_cast<std::string::size_type>(start - text.c_str()));
+    }
+}
+
+static bool is_composition_character(guint keyval) {
+    gunichar character = ibus_keyval_to_unicode(keyval);
+    return g_unichar_isalnum(character) || character == '-' || character == '[' || character == ']' ||
+           character == '\\' || character == ';' || character == '\'' || character == ',' || character == '.' ||
+           character == '/' || character == '`' || character == '=';
+}
+
 static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint state) {
     auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
     if (state & IBUS_RELEASE_MASK || state & (IBUS_CONTROL_MASK | IBUS_MOD1_MASK | IBUS_SUPER_MASK)) return FALSE;
+
+    if (keyval == IBUS_KEY_Left || keyval == IBUS_KEY_Right || keyval == IBUS_KEY_Up ||
+        keyval == IBUS_KEY_Down || keyval == IBUS_KEY_Home || keyval == IBUS_KEY_End ||
+        keyval == IBUS_KEY_Page_Up || keyval == IBUS_KEY_Page_Down || keyval == IBUS_KEY_Escape) {
+        commit_preedit(engine);
+        startNewSession();
+        return FALSE;
+    }
     guint16 key = key_for_keyval(keyval);
     if (key == KEY_EMPTY) return FALSE;
 
@@ -109,31 +127,14 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     }
 
     vKeyHookState* hook = engine->hook;
-    if (hook->code == vDoNothing) return FALSE;
+    if (keyval == IBUS_KEY_BackSpace) {
+        if (engine->preedit.empty()) return FALSE;
+        remove_preedit_characters(engine->preedit, 1);
+        update_preedit(engine);
+        return TRUE;
+    }
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        // Terminals frequently do not implement delete-surrounding-text. Queue
-        // Backspace after the current synchronous IBus call has returned.
-        if (vCompatibilityMode) {
-            ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
-        } else {
-            GString* delayed_output = g_string_new(nullptr);
-            const std::vector<Uint32>& delayed_characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
-            if (hook->code == vReplaceMaro) {
-                for (Uint32 c : delayed_characters) g_string_append_unichar(delayed_output, output_character(c));
-            } else {
-                for (int i = hook->newCharCount - 1; i >= 0; --i) {
-                    gunichar c = output_character(hook->charData[i]);
-                    if (c) g_string_append_unichar(delayed_output, c);
-                }
-            }
-            auto* replacement = new PendingReplacement{base, hook->backspaceCount,
-                                                       std::string(delayed_output->str, delayed_output->len),
-                                                       hook->code == vRestoreAndStartNewSession};
-            g_string_free(delayed_output, TRUE);
-            g_object_ref(base);
-            g_idle_add(deliver_replacement, replacement);
-            return TRUE;
-        }
+        remove_preedit_characters(engine->preedit, hook->backspaceCount);
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
         if (hook->code == vReplaceMaro) {
@@ -144,23 +145,41 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
                 if (c) g_string_append_unichar(output, c);
             }
         }
-        if (output->len) {
-            IBusText* text = ibus_text_new_from_string(output->str);
-            ibus_engine_commit_text(base, text);
-        }
+        if (output->len) engine->preedit += output->str;
         g_string_free(output, TRUE);
         if (hook->code == vRestoreAndStartNewSession) startNewSession();
+        if (!is_composition_character(keyval)) {
+            commit_preedit(engine);
+            return FALSE;
+        }
+        update_preedit(engine);
         return TRUE;
     }
+
+    if (hook->code == vDoNothing && is_composition_character(keyval)) {
+        gunichar character = ibus_keyval_to_unicode(keyval);
+        gchar encoded[7] = {0};
+        const gint length = g_unichar_to_utf8(character, encoded);
+        engine->preedit.append(encoded, length);
+        update_preedit(engine);
+        return TRUE;
+    }
+
+    commit_preedit(engine);
     return FALSE;
 }
 
 static void openkey_engine_init(OpenKeyEngine* engine) { engine->hook = static_cast<vKeyHookState*>(vKeyInit()); }
-static void openkey_engine_enable(IBusEngine*) {
+static void openkey_engine_enable(IBusEngine* base) {
+    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
+    engine->preedit.clear();
+    update_preedit(engine);
     vLanguage = 1;
     startNewSession();
 }
-static void openkey_engine_disable(IBusEngine*) {
+static void openkey_engine_disable(IBusEngine* base) {
+    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
+    commit_preedit(engine);
     vLanguage = 0;
     startNewSession();
 }
