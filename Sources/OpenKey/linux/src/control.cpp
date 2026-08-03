@@ -64,6 +64,21 @@ static void quit(GtkMenuItem*, gpointer) { gtk_main_quit(); }
 
 static void activate(GtkApplication* application, gpointer data) {
     auto* app = static_cast<App*>(data);
+    app->indicator = app_indicator_new("openkey", "input-keyboard", APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+    GtkWidget* menu = gtk_menu_new();
+    GtkWidget* enabled = gtk_check_menu_item_new_with_label("Vietnamese typing");
+    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(enabled), g_settings_get_boolean(app->settings.get(), "enabled"));
+    g_signal_connect(enabled, "toggled", G_CALLBACK(set_enabled), app);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), enabled);
+    GtkWidget* settings = gtk_menu_item_new_with_label("Settings…");
+    g_signal_connect(settings, "activate", G_CALLBACK(show_settings), app);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), settings);
+    GtkWidget* exit = gtk_menu_item_new_with_label("Quit");
+    g_signal_connect(exit, "activate", G_CALLBACK(quit), nullptr);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit);
+    gtk_widget_show_all(menu);
+    app_indicator_set_menu(app->indicator, GTK_MENU(menu));
+
     app->window = gtk_application_window_new(application);
     gtk_window_set_title(GTK_WINDOW(app->window), "OpenKey Settings");
     gtk_window_set_default_size(GTK_WINDOW(app->window), 480, 520);
@@ -100,22 +115,8 @@ int main(int argc, char** argv) {
     App app;
     GtkApplication* application = gtk_application_new("org.openkey.Linux.Control", G_APPLICATION_FLAGS_NONE);
     g_signal_connect(application, "activate", G_CALLBACK(activate), &app);
-    app.indicator = app_indicator_new("openkey", "input-keyboard", APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
-    GtkWidget* menu = gtk_menu_new();
-    GtkWidget* enabled = gtk_check_menu_item_new_with_label("Vietnamese typing");
-    g_signal_connect(enabled, "toggled", G_CALLBACK(set_enabled), &app);
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), enabled);
-    GtkWidget* settings = gtk_menu_item_new_with_label("Settings…");
-    g_signal_connect(settings, "activate", G_CALLBACK(show_settings), &app);
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), settings);
-    GtkWidget* exit = gtk_menu_item_new_with_label("Quit");
-    g_signal_connect(exit, "activate", G_CALLBACK(quit), nullptr);
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit);
-    gtk_widget_show_all(menu);
-    app_indicator_set_menu(app.indicator, GTK_MENU(menu));
-    update_indicator(&app);
     int status = g_application_run(G_APPLICATION(application), argc, argv);
-    g_object_unref(app.indicator);
+    if (app.indicator) g_object_unref(app.indicator);
     g_object_unref(application);
     return status;
 }
