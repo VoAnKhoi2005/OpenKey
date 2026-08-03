@@ -1,5 +1,7 @@
 #include <gtk/gtk.h>
 #include <libayatana-appindicator/app-indicator.h>
+#include <string>
+#include <vector>
 #include "config.h"
 
 struct App {
@@ -7,7 +9,65 @@ struct App {
     AppIndicator* indicator{};
     GtkWidget* window{};
     GtkWidget* enabled{};
+    GtkWidget* macro_list{};
+    GtkWidget* macro_trigger{};
+    GtkWidget* macro_replacement{};
 };
+
+static void load_macro_list(App* app) {
+    GList* children = gtk_container_get_children(GTK_CONTAINER(app->macro_list));
+    for (GList* item = children; item; item = item->next) gtk_widget_destroy(GTK_WIDGET(item->data));
+    g_list_free(children);
+    gchar** entries = g_settings_get_strv(app->settings.get(), "macros");
+    for (gchar** entry = entries; entry && *entry; ++entry) {
+        gchar** pair = g_strsplit(*entry, "\t", 2);
+        if (pair[0] && pair[1]) {
+            GtkWidget* row = gtk_list_box_row_new();
+            std::string label = std::string(pair[0]) + "  →  " + pair[1];
+            gtk_container_add(GTK_CONTAINER(row), gtk_label_new(label.c_str()));
+            g_object_set_data_full(G_OBJECT(row), "trigger", g_strdup(pair[0]), g_free);
+            g_object_set_data_full(G_OBJECT(row), "replacement", g_strdup(pair[1]), g_free);
+            gtk_container_add(GTK_CONTAINER(app->macro_list), row);
+        }
+        g_strfreev(pair);
+    }
+    g_strfreev(entries);
+    gtk_widget_show_all(app->macro_list);
+}
+
+static void save_macro(App* app, const char* remove_trigger = nullptr) {
+    const char* trigger = gtk_entry_get_text(GTK_ENTRY(app->macro_trigger));
+    const char* replacement = gtk_entry_get_text(GTK_ENTRY(app->macro_replacement));
+    std::vector<std::string> entries;
+    gchar** current = g_settings_get_strv(app->settings.get(), "macros");
+    for (gchar** entry = current; entry && *entry; ++entry) {
+        gchar** pair = g_strsplit(*entry, "\t", 2);
+        bool keep = pair[0] && (!remove_trigger || g_strcmp0(pair[0], remove_trigger) != 0) && g_strcmp0(pair[0], trigger) != 0;
+        if (keep) entries.emplace_back(*entry);
+        g_strfreev(pair);
+    }
+    g_strfreev(current);
+    if (*trigger && *replacement && !remove_trigger) entries.emplace_back(std::string(trigger) + "\t" + replacement);
+    std::vector<const gchar*> raw;
+    for (const auto& entry : entries) raw.push_back(entry.c_str());
+    raw.push_back(nullptr);
+    g_settings_set_strv(app->settings.get(), "macros", raw.data());
+    if (!remove_trigger) { gtk_entry_set_text(GTK_ENTRY(app->macro_trigger), ""); gtk_entry_set_text(GTK_ENTRY(app->macro_replacement), ""); }
+    load_macro_list(app);
+}
+
+static void macro_add(GtkButton*, gpointer data) { save_macro(static_cast<App*>(data)); }
+static void macro_delete(GtkButton*, gpointer data) {
+    auto* app = static_cast<App*>(data);
+    GtkListBoxRow* row = gtk_list_box_get_selected_row(GTK_LIST_BOX(app->macro_list));
+    if (row) save_macro(app, static_cast<const char*>(g_object_get_data(G_OBJECT(row), "trigger")));
+}
+static void macro_selected(GtkListBox*, GtkListBoxRow* row, gpointer data) {
+    if (!row) return;
+    auto* app = static_cast<App*>(data);
+    gtk_entry_set_text(GTK_ENTRY(app->macro_trigger), static_cast<const char*>(g_object_get_data(G_OBJECT(row), "trigger")));
+    gtk_entry_set_text(GTK_ENTRY(app->macro_replacement), static_cast<const char*>(g_object_get_data(G_OBJECT(row), "replacement")));
+}
 
 static void update_indicator(App* app) {
     bool enabled = g_settings_get_boolean(app->settings.get(), "enabled");
@@ -180,7 +240,25 @@ static void activate(GtkApplication* application, gpointer data) {
     setting_switch(app, macros, "Bật gõ tắt", "use-macro");
     setting_switch(app, macros, "Dùng gõ tắt khi ở chế độ tiếng Anh", "macro-in-english");
     setting_switch(app, macros, "Tự viết hoa phần thay thế", "auto-caps-macro");
-    gtk_box_pack_start(GTK_BOX(macros), gtk_label_new("Danh sách gõ tắt sẽ được dùng chung với lõi OpenKey khi nhập từ phiên bản macOS/Windows."), FALSE, FALSE, 0);
+    app->macro_list = gtk_list_box_new();
+    gtk_widget_set_vexpand(app->macro_list, TRUE);
+    g_signal_connect(app->macro_list, "row-selected", G_CALLBACK(macro_selected), app);
+    gtk_box_pack_start(GTK_BOX(macros), app->macro_list, TRUE, TRUE, 0);
+    app->macro_trigger = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->macro_trigger), "Gõ tắt, ví dụ: dc");
+    gtk_box_pack_start(GTK_BOX(macros), app->macro_trigger, FALSE, FALSE, 0);
+    app->macro_replacement = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->macro_replacement), "Nội dung thay thế");
+    gtk_box_pack_start(GTK_BOX(macros), app->macro_replacement, FALSE, FALSE, 0);
+    GtkWidget* macro_buttons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* add_macro = gtk_button_new_with_label("Thêm / Cập nhật");
+    GtkWidget* delete_macro = gtk_button_new_with_label("Xoá mục chọn");
+    g_signal_connect(add_macro, "clicked", G_CALLBACK(macro_add), app);
+    g_signal_connect(delete_macro, "clicked", G_CALLBACK(macro_delete), app);
+    gtk_box_pack_start(GTK_BOX(macro_buttons), add_macro, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(macro_buttons), delete_macro, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(macros), macro_buttons, FALSE, FALSE, 0);
+    load_macro_list(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), macros, gtk_label_new("Gõ tắt"));
     GtkWidget* system = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(system), 16);

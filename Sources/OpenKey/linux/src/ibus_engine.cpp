@@ -3,6 +3,21 @@
 #include "Engine.h"
 #include "config.h"
 
+static void reload_macros(GSettings* settings) {
+    initMacroMap(nullptr, 0);
+    gchar** entries = g_settings_get_strv(settings, "macros");
+    for (gchar** entry = entries; entry && *entry; ++entry) {
+        gchar** pair = g_strsplit(*entry, "\t", 2);
+        if (pair[0] && pair[1] && *pair[0]) addMacro(pair[0], pair[1]);
+        g_strfreev(pair);
+    }
+    g_strfreev(entries);
+}
+
+static void settings_changed(GSettings* settings, gchar* key, gpointer) {
+    if (g_str_equal(key, "macros")) reload_macros(settings);
+}
+
 typedef struct _OpenKeyEngine { IBusEngine parent; vKeyHookState* hook; } OpenKeyEngine;
 typedef struct _OpenKeyEngineClass { IBusEngineClass parent; } OpenKeyEngineClass;
 
@@ -102,6 +117,8 @@ static void openkey_engine_class_init(OpenKeyEngineClass* klass) {
 int main() {
     ibus_init();
     OpenKeySettings settings;
+    reload_macros(settings.get());
+    g_signal_connect(settings.get(), "changed", G_CALLBACK(settings_changed), nullptr);
     IBusBus* bus = ibus_bus_new();
     IBusFactory* factory = ibus_factory_new(ibus_bus_get_connection(bus));
     ibus_factory_add_engine(factory, "openkey", openkey_engine_get_type());

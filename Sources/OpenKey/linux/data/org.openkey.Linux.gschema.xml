@@ -10,6 +10,7 @@
     <key name="quick-telex" type="b"><default>false</default><summary>Enable Quick Telex</summary></key>
     <key name="restore-invalid" type="b"><default>false</default><summary>Restore invalid words</summary></key>
     <key name="use-macro" type="b"><default>true</default><summary>Enable macros</summary></key>
+    <key name="macros" type="as"><default>[]</default><summary>Macro entries encoded as trigger-tab-replacement</summary></key>
     <key name="macro-in-english" type="b"><default>false</default><summary>Macros in English mode</summary></key>
     <key name="auto-caps-macro" type="b"><default>false</default><summary>Preserve macro capitalization</summary></key>
     <key name="uppercase-first" type="b"><default>false</default><summary>Uppercase first character</summary></key>
