@@ -1,6 +1,5 @@
 #include <ibus.h>
 #include <string>
-#include <vector>
 #include "Engine.h"
 #include "config.h"
 
@@ -19,11 +18,7 @@ static void settings_changed(GSettings* settings, gchar* key, gpointer) {
     if (g_str_equal(key, "macros")) reload_macros(settings);
 }
 
-typedef struct _OpenKeyEngine {
-    IBusEngine parent;
-    vKeyHookState* hook;
-    std::string preedit;
-} OpenKeyEngine;
+typedef struct _OpenKeyEngine { IBusEngine parent; vKeyHookState* hook; } OpenKeyEngine;
 typedef struct _OpenKeyEngineClass { IBusEngineClass parent; } OpenKeyEngineClass;
 
 G_DEFINE_TYPE(OpenKeyEngine, openkey_engine, IBUS_TYPE_ENGINE)
@@ -64,7 +59,6 @@ static gunichar output_character(guint32 data) {
     guint32 value = getCharacterCode(data);
     if (value & CHAR_CODE_MASK) return value & CHAR_MASK;
     guint16 key = value & CHAR_MASK;
-    // Convert the engine's physical Linux key codes back to their US symbols.
     for (char c = 'a'; c <= 'z'; ++c) if (key_for_ascii(c) == key) return (value & CAPS_MASK) ? g_ascii_toupper(c) : c;
     for (char c = '0'; c <= '9'; ++c) if (key_for_ascii(c) == key) return c;
     const char symbols[] = "`-=[]\\;',./ ";
@@ -72,60 +66,9 @@ static gunichar output_character(guint32 data) {
     return 0;
 }
 
-static void update_preedit(OpenKeyEngine* engine) {
-    IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
-    const guint cursor = static_cast<guint>(g_utf8_strlen(engine->preedit.c_str(), -1));
-    if (cursor) {
-        IBusAttrList* attributes = ibus_attr_list_new();
-        ibus_attr_list_append(attributes, ibus_attr_underline_new(IBUS_ATTR_UNDERLINE_SINGLE, 0, cursor));
-        ibus_text_set_attributes(text, attributes);
-    }
-    // The explicit focus mode is important for browsers and GTK4 clients: they
-    // retain and commit active composition when focus changes instead of silently
-    // dropping the text. This mirrors the lifecycle used by ibus-table.
-    ibus_engine_update_preedit_text_with_mode(IBUS_ENGINE(engine), text, cursor,
-                                              !engine->preedit.empty(), IBUS_ENGINE_PREEDIT_COMMIT);
-    if (!engine->preedit.empty()) ibus_engine_show_preedit_text(IBUS_ENGINE(engine));
-}
-
-static void commit_preedit(OpenKeyEngine* engine) {
-    if (!engine->preedit.empty()) {
-        IBusText* text = ibus_text_new_from_string(engine->preedit.c_str());
-        ibus_engine_commit_text(IBUS_ENGINE(engine), text);
-        engine->preedit.clear();
-    }
-    update_preedit(engine);
-}
-
-static void remove_preedit_characters(std::string& text, guint count) {
-    while (count-- && !text.empty()) {
-        gchar* start = g_utf8_find_prev_char(text.c_str(), text.c_str() + text.size());
-        if (!start) {
-            text.clear();
-            return;
-        }
-        text.erase(static_cast<std::string::size_type>(start - text.c_str()));
-    }
-}
-
-static bool is_composition_character(guint keyval) {
-    gunichar character = ibus_keyval_to_unicode(keyval);
-    return g_unichar_isalnum(character) || character == '-' || character == '[' || character == ']' ||
-           character == '\\' || character == ';' || character == '\'' || character == ',' || character == '.' ||
-           character == '/' || character == '`' || character == '=';
-}
-
 static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint state) {
     auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
     if (state & IBUS_RELEASE_MASK || state & (IBUS_CONTROL_MASK | IBUS_MOD1_MASK | IBUS_SUPER_MASK)) return FALSE;
-
-    if (keyval == IBUS_KEY_Left || keyval == IBUS_KEY_Right || keyval == IBUS_KEY_Up ||
-        keyval == IBUS_KEY_Down || keyval == IBUS_KEY_Home || keyval == IBUS_KEY_End ||
-        keyval == IBUS_KEY_Page_Up || keyval == IBUS_KEY_Page_Down || keyval == IBUS_KEY_Escape) {
-        commit_preedit(engine);
-        startNewSession();
-        return FALSE;
-    }
     guint16 key = key_for_keyval(keyval);
     if (key == KEY_EMPTY) return FALSE;
 
@@ -137,14 +80,14 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     }
 
     vKeyHookState* hook = engine->hook;
-    if (keyval == IBUS_KEY_BackSpace) {
-        if (engine->preedit.empty()) return FALSE;
-        remove_preedit_characters(engine->preedit, 1);
-        update_preedit(engine);
-        return TRUE;
-    }
+    if (hook->code == vDoNothing) return FALSE;
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        remove_preedit_characters(engine->preedit, hook->backspaceCount);
+        if (vCompatibilityMode) {
+            ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
+        } else {
+            for (guint i = 0; i < hook->backspaceCount; ++i)
+                ibus_engine_forward_key_event(base, IBUS_KEY_BackSpace, 0, 0);
+        }
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
         if (hook->code == vReplaceMaro) {
@@ -155,65 +98,24 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
                 if (c) g_string_append_unichar(output, c);
             }
         }
-        if (output->len) engine->preedit += output->str;
+        if (output->len) {
+            IBusText* text = ibus_text_new_from_string(output->str);
+            ibus_engine_commit_text(base, text);
+        }
         g_string_free(output, TRUE);
         if (hook->code == vRestoreAndStartNewSession) startNewSession();
-        if (!is_composition_character(keyval)) {
-            commit_preedit(engine);
-            return FALSE;
-        }
-        update_preedit(engine);
         return TRUE;
     }
-
-    if (hook->code == vDoNothing && is_composition_character(keyval)) {
-        gunichar character = ibus_keyval_to_unicode(keyval);
-        gchar encoded[7] = {0};
-        const gint length = g_unichar_to_utf8(character, encoded);
-        engine->preedit.append(encoded, length);
-        update_preedit(engine);
-        return TRUE;
-    }
-
-    commit_preedit(engine);
     return FALSE;
 }
 
 static void openkey_engine_init(OpenKeyEngine* engine) { engine->hook = static_cast<vKeyHookState*>(vKeyInit()); }
-static void openkey_engine_enable(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    engine->preedit.clear();
-    update_preedit(engine);
-    vLanguage = 1;
-    startNewSession();
-}
-static void openkey_engine_disable(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    commit_preedit(engine);
-    vLanguage = 0;
-    startNewSession();
-}
-static void openkey_engine_focus_in(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    update_preedit(engine);
-}
-static void openkey_engine_focus_out(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    commit_preedit(engine);
-}
-static void openkey_engine_reset(IBusEngine* base) {
-    auto* engine = reinterpret_cast<OpenKeyEngine*>(base);
-    engine->preedit.clear();
-    update_preedit(engine);
-    startNewSession();
-}
+static void openkey_engine_enable(IBusEngine*) { vLanguage = 1; startNewSession(); }
+static void openkey_engine_disable(IBusEngine*) { vLanguage = 0; startNewSession(); }
 static void openkey_engine_class_init(OpenKeyEngineClass* klass) {
     IBUS_ENGINE_CLASS(klass)->process_key_event = process_key_event;
     IBUS_ENGINE_CLASS(klass)->enable = openkey_engine_enable;
     IBUS_ENGINE_CLASS(klass)->disable = openkey_engine_disable;
-    IBUS_ENGINE_CLASS(klass)->focus_in = openkey_engine_focus_in;
-    IBUS_ENGINE_CLASS(klass)->focus_out = openkey_engine_focus_out;
-    IBUS_ENGINE_CLASS(klass)->reset = openkey_engine_reset;
 }
 
 int main() {
