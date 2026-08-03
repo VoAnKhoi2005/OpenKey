@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=OpenKey
+Comment=Configure the OpenKey Vietnamese input method
+Exec=openkey-control
+Icon=input-keyboard
+Categories=Settings;Utility;
+StartupNotify=true
