@@ -27,6 +27,8 @@ target_link_libraries(openkey-ibus PRIVATE openkey-config PkgConfig::IBUS)
 target_include_directories(openkey-ibus PRIVATE ../engine src)
 
 add_executable(openkey-control src/control.cpp)
+target_sources(openkey-control PRIVATE ${ENGINE_SOURCES})
+target_compile_definitions(openkey-control PRIVATE LINUX)
 target_link_libraries(openkey-control PRIVATE openkey-config PkgConfig::GTK PkgConfig::INDICATOR)
 
 configure_file(data/openkey.xml.in openkey.xml @ONLY)

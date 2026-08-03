@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "config.h"
+#include "ConvertTool.h"
 
 struct App {
     OpenKeySettings settings;
@@ -147,6 +148,47 @@ static void show_settings(GtkMenuItem*, gpointer data) {
 
 static void quit(GtkMenuItem*, gpointer) { gtk_main_quit(); }
 
+static void convert_text(GtkButton*, gpointer data) {
+    GtkWidget* dialog = GTK_WIDGET(data);
+    GtkTextBuffer* input = GTK_TEXT_BUFFER(g_object_get_data(G_OBJECT(dialog), "input"));
+    GtkTextBuffer* output = GTK_TEXT_BUFFER(g_object_get_data(G_OBJECT(dialog), "output"));
+    GtkComboBox* from = GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "from"));
+    GtkComboBox* to = GTK_COMBO_BOX(g_object_get_data(G_OBJECT(dialog), "to"));
+    convertToolFromCode = gtk_combo_box_get_active(from);
+    convertToolToCode = gtk_combo_box_get_active(to);
+    GtkTextIter begin, end;
+    gtk_text_buffer_get_bounds(input, &begin, &end);
+    gchar* source = gtk_text_buffer_get_text(input, &begin, &end, FALSE);
+    std::string result = convertUtil(source);
+    gtk_text_buffer_set_text(output, result.c_str(), -1);
+    g_free(source);
+}
+
+static void show_convert(GtkMenuItem*, gpointer data) {
+    auto* app = static_cast<App*>(data);
+    GtkWidget* dialog = gtk_dialog_new_with_buttons("Công cụ chuyển mã", GTK_WINDOW(app->window), GTK_DIALOG_DESTROY_WITH_PARENT, "Đóng", GTK_RESPONSE_CLOSE, nullptr);
+    GtkWidget* area = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    GtkWidget* controls = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+    GtkWidget* from = gtk_combo_box_text_new(); GtkWidget* to = gtk_combo_box_text_new();
+    const char* names[] = {"Unicode", "TCVN3 (ABC)", "VNI Windows", "Unicode tổ hợp", "CP1258"};
+    for (const char* name : names) { gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(from), name); gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(to), name); }
+    gtk_combo_box_set_active(GTK_COMBO_BOX(from), 0); gtk_combo_box_set_active(GTK_COMBO_BOX(to), 0);
+    gtk_box_pack_start(GTK_BOX(controls), gtk_label_new("Từ:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(controls), from, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(controls), gtk_label_new("Sang:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(controls), to, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(area), controls, FALSE, FALSE, 8);
+    GtkWidget* input = gtk_text_view_new(); GtkWidget* output = gtk_text_view_new(); gtk_text_view_set_editable(GTK_TEXT_VIEW(output), FALSE);
+    gtk_widget_set_size_request(input, 480, 130); gtk_widget_set_size_request(output, 480, 130);
+    gtk_box_pack_start(GTK_BOX(area), gtk_label_new("Văn bản nguồn:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(area), input, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(area), gtk_label_new("Kết quả:"), FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(area), output, TRUE, TRUE, 0);
+    GtkWidget* button = gtk_button_new_with_label("Chuyển mã"); gtk_box_pack_start(GTK_BOX(area), button, FALSE, FALSE, 8);
+    g_object_set_data(G_OBJECT(dialog), "input", gtk_text_view_get_buffer(GTK_TEXT_VIEW(input)));
+    g_object_set_data(G_OBJECT(dialog), "output", gtk_text_view_get_buffer(GTK_TEXT_VIEW(output)));
+    g_object_set_data(G_OBJECT(dialog), "from", from); g_object_set_data(G_OBJECT(dialog), "to", to);
+    g_signal_connect(button, "clicked", G_CALLBACK(convert_text), dialog);
+    g_signal_connect_swapped(dialog, "response", G_CALLBACK(gtk_widget_destroy), dialog);
+    gtk_widget_show_all(dialog);
+}
+
 static void activate(GtkApplication* application, gpointer data) {
     auto* app = static_cast<App*>(data);
     app->indicator = app_indicator_new("openkey", "input-keyboard", APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
@@ -171,6 +213,9 @@ static void activate(GtkApplication* application, gpointer data) {
     for (int i = 0; i < 5; ++i) add_choice(code_menu, &code_group, code_names[i], "code-table", i, selected_code);
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(code_root), code_menu);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), code_root);
+    GtkWidget* convert = gtk_menu_item_new_with_label("Công cụ chuyển mã…");
+    g_signal_connect(convert, "activate", G_CALLBACK(show_convert), app);
+    gtk_menu_shell_append(GTK_MENU_SHELL(menu), convert);
     GtkWidget* settings = gtk_menu_item_new_with_label("Bảng điều khiển…");
     g_signal_connect(settings, "activate", G_CALLBACK(show_settings), app);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), settings);
