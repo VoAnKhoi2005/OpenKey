@@ -69,6 +69,36 @@ static void macro_selected(GtkListBox*, GtkListBoxRow* row, gpointer data) {
     gtk_entry_set_text(GTK_ENTRY(app->macro_replacement), static_cast<const char*>(g_object_get_data(G_OBJECT(row), "replacement")));
 }
 
+static void export_macros(GtkButton*, gpointer data) {
+    auto* app = static_cast<App*>(data);
+    GtkWidget* chooser = gtk_file_chooser_dialog_new("Xuất gõ tắt", GTK_WINDOW(app->window), GTK_FILE_CHOOSER_ACTION_SAVE, "Huỷ", GTK_RESPONSE_CANCEL, "Lưu", GTK_RESPONSE_ACCEPT, nullptr);
+    gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(chooser), "openkey-macros.txt");
+    if (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_ACCEPT) {
+        gchar* path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser));
+        GString* text = g_string_new(";Compatible OpenKey Macro Data file for UniKey*** version=1 ***\n");
+        gchar** entries = g_settings_get_strv(app->settings.get(), "macros");
+        for (gchar** entry = entries; entry && *entry; ++entry) { gchar** pair = g_strsplit(*entry, "\t", 2); if (pair[0] && pair[1]) g_string_append_printf(text, "%s:%s\n", pair[0], pair[1]); g_strfreev(pair); }
+        g_strfreev(entries); g_file_set_contents(path, text->str, text->len, nullptr); g_string_free(text, TRUE); g_free(path);
+    }
+    gtk_widget_destroy(chooser);
+}
+
+static void import_macros(GtkButton*, gpointer data) {
+    auto* app = static_cast<App*>(data);
+    GtkWidget* chooser = gtk_file_chooser_dialog_new("Nhập gõ tắt", GTK_WINDOW(app->window), GTK_FILE_CHOOSER_ACTION_OPEN, "Huỷ", GTK_RESPONSE_CANCEL, "Mở", GTK_RESPONSE_ACCEPT, nullptr);
+    if (gtk_dialog_run(GTK_DIALOG(chooser)) == GTK_RESPONSE_ACCEPT) {
+        gchar* path = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(chooser)); gchar* contents = nullptr; gsize length = 0;
+        if (g_file_get_contents(path, &contents, &length, nullptr)) {
+            std::vector<std::string> entries; gchar** lines = g_strsplit(contents, "\n", -1);
+            for (gchar** line = lines; line && *line; ++line) { if (**line == ';' || **line == '\0') continue; gchar* colon = strchr(*line, ':'); if (colon && colon != *line) { *colon = '\0'; entries.emplace_back(std::string(*line) + "\t" + (colon + 1)); } }
+            std::vector<const gchar*> raw; for (const auto& entry : entries) raw.push_back(entry.c_str()); raw.push_back(nullptr);
+            g_settings_set_strv(app->settings.get(), "macros", raw.data()); g_strfreev(lines); g_free(contents); load_macro_list(app);
+        }
+        g_free(path);
+    }
+    gtk_widget_destroy(chooser);
+}
+
 static void update_indicator(App* app) {
     app_indicator_set_icon_full(app->indicator, "input-keyboard", "OpenKey settings");
     app_indicator_set_label(app->indicator, "OK", "OpenKey");
@@ -324,6 +354,9 @@ static void activate(GtkApplication* application, gpointer data) {
     g_signal_connect(delete_macro, "clicked", G_CALLBACK(macro_delete), app);
     gtk_box_pack_start(GTK_BOX(macro_buttons), add_macro, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(macro_buttons), delete_macro, FALSE, FALSE, 0);
+    GtkWidget* import_button = gtk_button_new_with_label("Nhập…"); GtkWidget* export_button = gtk_button_new_with_label("Xuất…");
+    g_signal_connect(import_button, "clicked", G_CALLBACK(import_macros), app); g_signal_connect(export_button, "clicked", G_CALLBACK(export_macros), app);
+    gtk_box_pack_start(GTK_BOX(macro_buttons), import_button, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(macro_buttons), export_button, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(macros), macro_buttons, FALSE, FALSE, 0);
     load_macro_list(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), macros, gtk_label_new("Gõ tắt"));
