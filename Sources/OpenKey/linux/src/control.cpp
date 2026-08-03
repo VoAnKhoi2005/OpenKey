@@ -348,6 +348,7 @@ static void activate(GtkApplication* application, gpointer data) {
     g_signal_connect(charset, "changed", G_CALLBACK(combo_changed), const_cast<char*>("code-table"));
     gtk_box_pack_start(GTK_BOX(box), charset, FALSE, FALSE, 0);
     setting_switch(app, box, "Kiểm tra chính tả", "spell-check");
+    setting_switch(app, box, "Cho phép đặt dấu tự do", "free-mark");
     setting_switch(app, box, "Dấu kiểu mới (oà, uý)", "modern-orthography");
     setting_switch(app, box, "Gõ tắt Telex", "quick-telex");
     setting_switch(app, box, "Khôi phục từ sai", "restore-invalid");
@@ -390,6 +391,9 @@ static void activate(GtkApplication* application, gpointer data) {
     setting_switch(app, system, "Cho phép phụ âm đầu Z, F, W, J", "allow-zfwj");
     setting_switch(app, system, "Gõ tắt phụ âm đầu", "quick-start-consonant");
     setting_switch(app, system, "Gõ tắt phụ âm cuối", "quick-end-consonant");
+    setting_switch(app, system, "Tạm tắt kiểm tra chính tả bằng Ctrl", "temp-off-spelling");
+    setting_switch(app, system, "Tạm tắt OpenKey bằng Alt", "temp-off-openkey");
+    setting_switch(app, system, "Chế độ tương thích ứng dụng", "compatibility-mode");
     startup_switch(app, system);
     gtk_box_pack_start(GTK_BOX(system), gtk_label_new("Dùng biểu tượng VI / EN trên thanh trên cùng để chuyển chế độ. Có thể thêm OpenKey vào Ứng dụng khởi động để chạy cùng Ubuntu."), FALSE, FALSE, 0);
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), system, gtk_label_new("Hệ thống"));

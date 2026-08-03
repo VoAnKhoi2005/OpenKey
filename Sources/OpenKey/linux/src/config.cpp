@@ -38,6 +38,7 @@ int vQuickEndConsonant = 0;
 int vRememberCode = 0;
 int vOtherLanguage = 0;
 int vTempOffOpenKey = 0;
+int vCompatibilityMode = 0;
 
 OpenKeySettings::OpenKeySettings() : settings_(g_settings_new("org.openkey.Linux")) {
     load();
@@ -52,6 +53,7 @@ void OpenKeySettings::changed(GSettings*, gchar*, gpointer self) {
 
 void OpenKeySettings::load() {
     vInputType = g_settings_get_int(settings_, "input-type");
+    vFreeMark = g_settings_get_boolean(settings_, "free-mark");
     gchar* custom = g_settings_get_string(settings_, "custom-input-keys");
     if (g_utf8_strlen(custom, -1) == 11) {
         const gchar* p = custom;
@@ -73,4 +75,7 @@ void OpenKeySettings::load() {
     vAllowConsonantZFWJ = g_settings_get_boolean(settings_, "allow-zfwj");
     vQuickStartConsonant = g_settings_get_boolean(settings_, "quick-start-consonant");
     vQuickEndConsonant = g_settings_get_boolean(settings_, "quick-end-consonant");
+    vTempOffSpelling = g_settings_get_boolean(settings_, "temp-off-spelling");
+    vTempOffOpenKey = g_settings_get_boolean(settings_, "temp-off-openkey");
+    vCompatibilityMode = g_settings_get_boolean(settings_, "compatibility-mode");
 }

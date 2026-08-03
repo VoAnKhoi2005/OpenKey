@@ -27,6 +27,7 @@ extern int vQuickEndConsonant;
 extern int vRememberCode;
 extern int vOtherLanguage;
 extern int vTempOffOpenKey;
+extern int vCompatibilityMode;
 extern Uint16 vCustomInputKeys[11];
 
 class OpenKeySettings {

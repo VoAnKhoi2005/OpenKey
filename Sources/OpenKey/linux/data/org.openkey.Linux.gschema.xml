@@ -5,6 +5,7 @@
     <key name="custom-input-keys" type="s"><default>'sfrxjaoewdz'</default><summary>Custom typing method keys</summary></key>
     <key name="code-table" type="i"><default>0</default><summary>Output encoding</summary></key>
     <key name="spell-check" type="b"><default>true</default><summary>Check Vietnamese spelling</summary></key>
+    <key name="free-mark" type="b"><default>false</default><summary>Allow free tone placement</summary></key>
     <key name="modern-orthography" type="b"><default>true</default><summary>Use modern tone placement</summary></key>
     <key name="quick-telex" type="b"><default>false</default><summary>Enable Quick Telex</summary></key>
     <key name="restore-invalid" type="b"><default>false</default><summary>Restore invalid words</summary></key>
@@ -16,6 +17,9 @@
     <key name="allow-zfwj" type="b"><default>false</default><summary>Allow Z F W J consonants</summary></key>
     <key name="quick-start-consonant" type="b"><default>false</default><summary>Quick starting consonants</summary></key>
     <key name="quick-end-consonant" type="b"><default>false</default><summary>Quick ending consonants</summary></key>
+    <key name="temp-off-spelling" type="b"><default>false</default><summary>Temporarily disable spelling with Control</summary></key>
+    <key name="temp-off-openkey" type="b"><default>false</default><summary>Temporarily disable OpenKey with Alt</summary></key>
+    <key name="compatibility-mode" type="b"><default>false</default><summary>Use compatibility output mode</summary></key>
     <key name="run-on-startup" type="b"><default>false</default><summary>Launch OpenKey control at login</summary></key>
   </schema>
 </schemalist>
