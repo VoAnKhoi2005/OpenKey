@@ -188,6 +188,12 @@ static void show_settings(GtkMenuItem*, gpointer data) {
 
 static void quit(GtkMenuItem*, gpointer) { gtk_main_quit(); }
 
+static void open_source_page(GtkButton*, gpointer) { gtk_show_uri_on_window(nullptr, "https://github.com/VoAnKhoi2005/OpenKey", GDK_CURRENT_TIME, nullptr); }
+static void check_updates(GtkButton* button, gpointer) {
+    gtk_button_set_label(button, "Mở trang phát hành…");
+    gtk_show_uri_on_window(nullptr, "https://github.com/VoAnKhoi2005/OpenKey/releases", GDK_CURRENT_TIME, nullptr);
+}
+
 static void convert_text(GtkButton*, gpointer data) {
     GtkWidget* dialog = GTK_WIDGET(data);
     GtkTextBuffer* input = GTK_TEXT_BUFFER(g_object_get_data(G_OBJECT(dialog), "input"));
@@ -399,7 +405,12 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), system, gtk_label_new("Hệ thống"));
     GtkWidget* about = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(about), 16);
-    gtk_box_pack_start(GTK_BOX(about), gtk_label_new("OpenKey cho Linux\nBộ gõ tiếng Việt dùng IBus\nGiấy phép GPL-3.0-or-later"), FALSE, FALSE, 0);
+    GtkWidget* about_text = gtk_label_new("<b>OpenKey cho Linux</b>\nBộ gõ tiếng Việt dùng IBus\nPhiên bản thử nghiệm 0.1.0\nGiấy phép GPL-3.0-or-later");
+    gtk_label_set_use_markup(GTK_LABEL(about_text), TRUE); gtk_widget_set_halign(about_text, GTK_ALIGN_START);
+    gtk_box_pack_start(GTK_BOX(about), about_text, FALSE, FALSE, 0);
+    GtkWidget* source = gtk_button_new_with_label("Mở mã nguồn"); GtkWidget* update = gtk_button_new_with_label("Kiểm tra bản mới");
+    g_signal_connect(source, "clicked", G_CALLBACK(open_source_page), nullptr); g_signal_connect(update, "clicked", G_CALLBACK(check_updates), nullptr);
+    gtk_box_pack_start(GTK_BOX(about), source, FALSE, FALSE, 0); gtk_box_pack_start(GTK_BOX(about), update, FALSE, FALSE, 0);
     gtk_notebook_append_page(GTK_NOTEBOOK(tabs), about, gtk_label_new("Giới thiệu"));
     update_indicator(app);
     gtk_widget_show_all(app->window);
