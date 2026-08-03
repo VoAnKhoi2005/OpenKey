@@ -82,12 +82,11 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     vKeyHookState* hook = engine->hook;
     if (hook->code == vDoNothing) return FALSE;
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        if (vCompatibilityMode) {
+        // Native IBus replacement. This is the original Linux frontend path;
+        // it leaves event forwarding to the input context instead of injecting
+        // artificial Backspace key events.
+        if (hook->backspaceCount)
             ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
-        } else {
-            for (guint i = 0; i < hook->backspaceCount; ++i)
-                ibus_engine_forward_key_event(base, IBUS_KEY_BackSpace, 0, 0);
-        }
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
         if (hook->code == vReplaceMaro) {
