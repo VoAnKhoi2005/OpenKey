@@ -9,7 +9,6 @@ struct App {
     OpenKeySettings settings;
     AppIndicator* indicator{};
     GtkWidget* window{};
-    GtkWidget* enabled{};
     GtkWidget* macro_list{};
     GtkWidget* macro_trigger{};
     GtkWidget* macro_replacement{};
@@ -71,16 +70,8 @@ static void macro_selected(GtkListBox*, GtkListBoxRow* row, gpointer data) {
 }
 
 static void update_indicator(App* app) {
-    bool enabled = g_settings_get_boolean(app->settings.get(), "enabled");
-    app_indicator_set_icon_full(app->indicator, "input-keyboard", enabled ? "OpenKey: Tiếng Việt" : "OpenKey: Tiếng Anh");
-    app_indicator_set_label(app->indicator, enabled ? "VI" : "EN", "OpenKey");
-    if (app->enabled) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->enabled), enabled);
-}
-
-static void set_enabled(GtkCheckMenuItem* item, gpointer data) {
-    auto* app = static_cast<App*>(data);
-    g_settings_set_boolean(app->settings.get(), "enabled", gtk_check_menu_item_get_active(item));
-    update_indicator(app);
+    app_indicator_set_icon_full(app->indicator, "input-keyboard", "OpenKey settings");
+    app_indicator_set_label(app->indicator, "OK", "OpenKey");
 }
 
 static void set_menu_choice(GtkCheckMenuItem* item, gpointer data) {
@@ -100,11 +91,6 @@ static void add_choice(GtkWidget* menu, GSList** group, const char* label, const
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), item);
 }
 
-static void toggle_changed(GtkToggleButton* button, gpointer data) {
-    auto* app = static_cast<App*>(data);
-    g_settings_set_boolean(app->settings.get(), "enabled", gtk_toggle_button_get_active(button));
-    update_indicator(app);
-}
 
 static void combo_changed(GtkComboBox* box, gpointer data) {
     const char* key = static_cast<const char*>(data);
@@ -193,10 +179,6 @@ static void activate(GtkApplication* application, gpointer data) {
     auto* app = static_cast<App*>(data);
     app->indicator = app_indicator_new("openkey", "input-keyboard", APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
     GtkWidget* menu = gtk_menu_new();
-    GtkWidget* enabled = gtk_check_menu_item_new_with_label("Bật tiếng Việt");
-    gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(enabled), g_settings_get_boolean(app->settings.get(), "enabled"));
-    g_signal_connect(enabled, "toggled", G_CALLBACK(set_enabled), app);
-    gtk_menu_shell_append(GTK_MENU_SHELL(menu), enabled);
     GtkWidget* type_menu = gtk_menu_new();
     GtkWidget* type_root = gtk_menu_item_new_with_label("Kiểu gõ");
     GSList* type_group = nullptr;
@@ -238,9 +220,7 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_label_set_use_markup(GTK_LABEL(title), TRUE);
     gtk_widget_set_halign(title, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
-    app->enabled = gtk_check_button_new_with_label("Bật gõ tiếng Việt");
-    g_signal_connect(app->enabled, "toggled", G_CALLBACK(toggle_changed), app);
-    gtk_box_pack_start(GTK_BOX(box), app->enabled, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Chuyển Việt/Anh bằng Input Sources của Ubuntu."), FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Kiểu gõ"), FALSE, FALSE, 0);
     GtkWidget* method = gtk_combo_box_text_new();

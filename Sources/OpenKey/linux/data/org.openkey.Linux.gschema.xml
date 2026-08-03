@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.openkey.Linux" path="/org/openkey/linux/">
-    <key name="enabled" type="b"><default>true</default><summary>Vietnamese mode</summary></key>
     <key name="input-type" type="i"><default>0</default><summary>Typing method</summary></key>
     <key name="custom-input-keys" type="s"><default>'sfrxjaoewdz'</default><summary>Custom typing method keys</summary></key>
     <key name="code-table" type="i"><default>0</default><summary>Output encoding</summary></key>

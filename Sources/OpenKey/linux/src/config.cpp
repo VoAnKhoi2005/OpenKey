@@ -51,7 +51,6 @@ void OpenKeySettings::changed(GSettings*, gchar*, gpointer self) {
 }
 
 void OpenKeySettings::load() {
-    vLanguage = g_settings_get_boolean(settings_, "enabled");
     vInputType = g_settings_get_int(settings_, "input-type");
     gchar* custom = g_settings_get_string(settings_, "custom-input-keys");
     if (g_utf8_strlen(custom, -1) == 11) {

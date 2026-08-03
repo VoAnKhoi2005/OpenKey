@@ -12,7 +12,7 @@ impact.
 - [x] Custom 11-key typing layout
 - [x] Code-table selection: Unicode, TCVN3, VNI Windows, Unicode Compound, CP1258
 - [x] Settings launcher exposed to Ubuntu Keyboard settings through IBus
-- [ ] Per-application input-mode and code-table memory
+- [ ] Per-application input-source and code-table memory — deferred: requires a GNOME Shell extension to control Ubuntu Input Sources safely on Wayland.
 - [ ] Configurable keyboard shortcut to toggle Vietnamese/English
 - [ ] Temporary-disable shortcuts and compatibility profiles
 

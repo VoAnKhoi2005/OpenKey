@@ -110,8 +110,12 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
 }
 
 static void openkey_engine_init(OpenKeyEngine* engine) { engine->hook = static_cast<vKeyHookState*>(vKeyInit()); }
+static void openkey_engine_enable(IBusEngine*) { vLanguage = 1; startNewSession(); }
+static void openkey_engine_disable(IBusEngine*) { vLanguage = 0; startNewSession(); }
 static void openkey_engine_class_init(OpenKeyEngineClass* klass) {
     IBUS_ENGINE_CLASS(klass)->process_key_event = process_key_event;
+    IBUS_ENGINE_CLASS(klass)->enable = openkey_engine_enable;
+    IBUS_ENGINE_CLASS(klass)->disable = openkey_engine_disable;
 }
 
 int main() {
