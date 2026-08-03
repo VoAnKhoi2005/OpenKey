@@ -11,7 +11,7 @@ struct App {
 
 static void update_indicator(App* app) {
     bool enabled = g_settings_get_boolean(app->settings.get(), "enabled");
-    app_indicator_set_icon_full(app->indicator, "input-keyboard", enabled ? "OpenKey: Vietnamese" : "OpenKey: English");
+    app_indicator_set_icon_full(app->indicator, "input-keyboard", enabled ? "OpenKey: Tiếng Việt" : "OpenKey: Tiếng Anh");
     app_indicator_set_label(app->indicator, enabled ? "VI" : "EN", "OpenKey");
     if (app->enabled) gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->enabled), enabled);
 }
@@ -74,47 +74,47 @@ static void activate(GtkApplication* application, gpointer data) {
     auto* app = static_cast<App*>(data);
     app->indicator = app_indicator_new("openkey", "input-keyboard", APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
     GtkWidget* menu = gtk_menu_new();
-    GtkWidget* enabled = gtk_check_menu_item_new_with_label("Vietnamese typing");
+    GtkWidget* enabled = gtk_check_menu_item_new_with_label("Bật tiếng Việt");
     gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(enabled), g_settings_get_boolean(app->settings.get(), "enabled"));
     g_signal_connect(enabled, "toggled", G_CALLBACK(set_enabled), app);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), enabled);
-    GtkWidget* settings = gtk_menu_item_new_with_label("Settings…");
+    GtkWidget* settings = gtk_menu_item_new_with_label("Bảng điều khiển…");
     g_signal_connect(settings, "activate", G_CALLBACK(show_settings), app);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), settings);
-    GtkWidget* exit = gtk_menu_item_new_with_label("Quit");
+    GtkWidget* exit = gtk_menu_item_new_with_label("Thoát");
     g_signal_connect(exit, "activate", G_CALLBACK(quit), nullptr);
     gtk_menu_shell_append(GTK_MENU_SHELL(menu), exit);
     gtk_widget_show_all(menu);
     app_indicator_set_menu(app->indicator, GTK_MENU(menu));
 
     app->window = gtk_application_window_new(application);
-    gtk_window_set_title(GTK_WINDOW(app->window), "OpenKey Settings");
+    gtk_window_set_title(GTK_WINDOW(app->window), "Bảng điều khiển OpenKey");
     gtk_window_set_default_size(GTK_WINDOW(app->window), 480, 520);
     gtk_container_set_border_width(GTK_CONTAINER(app->window), 20);
     GtkWidget* tabs = gtk_notebook_new();
     gtk_container_add(GTK_CONTAINER(app->window), tabs);
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(box), 16);
-    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), box, gtk_label_new("Typing"));
-    GtkWidget* title = gtk_label_new("<b>OpenKey Vietnamese input</b>");
+    gtk_notebook_append_page(GTK_NOTEBOOK(tabs), box, gtk_label_new("Kiểu gõ"));
+    GtkWidget* title = gtk_label_new("<b>OpenKey – Bộ gõ tiếng Việt</b>");
     gtk_label_set_use_markup(GTK_LABEL(title), TRUE);
     gtk_widget_set_halign(title, GTK_ALIGN_START);
     gtk_box_pack_start(GTK_BOX(box), title, FALSE, FALSE, 0);
-    app->enabled = gtk_check_button_new_with_label("Enable Vietnamese typing");
+    app->enabled = gtk_check_button_new_with_label("Bật gõ tiếng Việt");
     g_signal_connect(app->enabled, "toggled", G_CALLBACK(toggle_changed), app);
     gtk_box_pack_start(GTK_BOX(box), app->enabled, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Typing method"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Kiểu gõ"), FALSE, FALSE, 0);
     GtkWidget* method = gtk_combo_box_text_new();
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Telex");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "VNI");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Simple Telex 1");
     gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Simple Telex 2");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Custom");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(method), "Tự định nghĩa");
     gtk_combo_box_set_active(GTK_COMBO_BOX(method), g_settings_get_int(app->settings.get(), "input-type"));
     g_signal_connect(method, "changed", G_CALLBACK(combo_changed), const_cast<char*>("input-type"));
     gtk_box_pack_start(GTK_BOX(box), method, FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Custom keys: sắc, huyền, hỏi, ngã, nặng, â, ô, ê, ơ/ư, đ, bỏ dấu"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(box), gtk_label_new("Phím tự định nghĩa: sắc, huyền, hỏi, ngã, nặng, â, ô, ê, ơ/ư, đ, bỏ dấu"), FALSE, FALSE, 0);
     GtkWidget* custom_keys = gtk_entry_new();
     gchar* saved_keys = g_settings_get_string(app->settings.get(), "custom-input-keys");
     gtk_entry_set_text(GTK_ENTRY(custom_keys), saved_keys);
@@ -123,12 +123,12 @@ static void activate(GtkApplication* application, gpointer data) {
     gtk_entry_set_placeholder_text(GTK_ENTRY(custom_keys), "sfrxjaoewdz");
     g_signal_connect(custom_keys, "changed", G_CALLBACK(custom_keys_changed), nullptr);
     gtk_box_pack_start(GTK_BOX(box), custom_keys, FALSE, FALSE, 0);
-    setting_switch(app, box, "Spell check", "spell-check");
-    setting_switch(app, box, "Modern orthography (oà, uý)", "modern-orthography");
-    setting_switch(app, box, "Quick Telex", "quick-telex");
-    setting_switch(app, box, "Restore invalid words", "restore-invalid");
-    setting_switch(app, box, "Enable macros", "use-macro");
-    setting_switch(app, box, "Auto-capitalize first character", "uppercase-first");
+    setting_switch(app, box, "Kiểm tra chính tả", "spell-check");
+    setting_switch(app, box, "Dấu kiểu mới (oà, uý)", "modern-orthography");
+    setting_switch(app, box, "Gõ tắt Telex", "quick-telex");
+    setting_switch(app, box, "Khôi phục từ sai", "restore-invalid");
+    setting_switch(app, box, "Bật gõ tắt", "use-macro");
+    setting_switch(app, box, "Viết hoa đầu câu", "uppercase-first");
     GtkWidget* macros = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(macros), 16);
     gtk_box_pack_start(GTK_BOX(macros), gtk_label_new("Macros"), FALSE, FALSE, 0);

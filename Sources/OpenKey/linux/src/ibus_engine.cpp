@@ -68,7 +68,11 @@ static gboolean process_key_event(IBusEngine* base, guint keyval, guint, guint s
     vKeyHookState* hook = engine->hook;
     if (hook->code == vDoNothing) return FALSE;
     if (hook->code == vWillProcess || hook->code == vRestore || hook->code == vRestoreAndStartNewSession || hook->code == vReplaceMaro) {
-        if (hook->backspaceCount) ibus_engine_delete_surrounding_text(base, -static_cast<gint>(hook->backspaceCount), hook->backspaceCount);
+        // Many terminals do not implement IBus surrounding-text deletion. Forward
+        // real Backspace events instead; this matches the original OpenKey model
+        // and prevents duplicated text such as "dungùng".
+        for (guint i = 0; i < hook->backspaceCount; ++i)
+            ibus_engine_forward_key_event(base, IBUS_KEY_BackSpace, 0, 0);
         GString* output = g_string_new(nullptr);
         const std::vector<Uint32>& characters = hook->code == vReplaceMaro ? hook->macroData : std::vector<Uint32>();
         if (hook->code == vReplaceMaro) {
